@@ -254,7 +254,7 @@ pub(crate) fn parse_fld_meta_as_codec_params(
                                 }
                                 _ => errors.push(syn::Error::new_spanned(
                                     nested,
-                                    "`extended` value should be an Bool Literal",
+                                    "`extended` value should be a Bool Literal",
                                 )),
                             }
                         }
@@ -280,7 +280,7 @@ pub(crate) fn parse_fld_meta_as_codec_params(
                                 }
                                 _ => errors.push(syn::Error::new_spanned(
                                     nested,
-                                    "`extended` value should be an Bool Literal",
+                                    "`key_field` value should be a Bool Literal",
                                 )),
                             }
                         }

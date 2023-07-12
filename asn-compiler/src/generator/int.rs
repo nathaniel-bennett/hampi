@@ -115,8 +115,14 @@ impl Generator {
         // FIXME: Not sure how to make sure the crates defined here are a dependency.
         // May be can just do with documenting it.
 
-        // First Get the 'consts' for builtin values.
         let mut items = vec![];
+
+        // Add necessary include crates
+        items.push(quote! {
+            use asn1_codecs::Asn1Choice;
+        });
+
+        // Get the 'consts' for builtin values.
         for (k, v) in resolver.get_resolved_values() {
             let item = Asn1ResolvedValue::generate_const_for_base_value(k, v, self)?;
             if let Some(it) = item {
@@ -219,11 +225,15 @@ impl Generator {
         }
     }
 
-    pub(crate) fn generate_derive_tokens(&self) -> TokenStream {
+    pub(crate) fn generate_derive_tokens(&self, arbitrary: bool) -> TokenStream {
         let mut tokens = vec![];
         for codec in &self.codecs {
             let codec_token = CODEC_TOKENS.get(codec).unwrap();
             tokens.push(codec_token.to_string());
+        }
+
+        if arbitrary {
+            tokens.push("arbitrary::Arbitrary".to_string());
         }
 
         for derive in &self.derives {

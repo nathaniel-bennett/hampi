@@ -31,9 +31,13 @@ impl ResolvedConstructedType {
 
             let vis = generator.get_visibility_tokens();
 
+            let mut arb_def_tokens = TokenStream::new();
+            let mut arb_field_tokens = TokenStream::new();
+            let mut key_field = None;
+            let mut key_value_name = None;
             let mut comp_tokens = TokenStream::new();
             let mut optional_fields = 0;
-            for c in components {
+            for (idx, c) in components.iter().enumerate() {
                 let comp_field_ident = generator.to_value_ident(&c.component.id);
                 let comp_ty_suffix = generator.to_type_ident(&c.component.id);
                 let input_comp_ty_ident = format!("{}{}", name, comp_ty_suffix);
@@ -44,17 +48,33 @@ impl ResolvedConstructedType {
                 )?;
                 let mut fld_attrs = vec![];
 
-                let fld_tokens = if c.optional {
+                let (ty_ident, fld_tokens) = if c.optional {
                     let idx: proc_macro2::TokenStream =
                         format!("{}", optional_fields).parse().unwrap();
                     fld_attrs.push(quote! { optional_idx = #idx,  });
 
                     optional_fields += 1;
 
-                    quote! { #vis #comp_field_ident: Option<#comp_ty_ident>, }
+                    (quote! { Option<#comp_ty_ident> }, quote! { #vis #comp_field_ident: Option<#comp_ty_ident>, })
                 } else {
-                    quote! { #vis #comp_field_ident: #comp_ty_ident, }
+                    (quote! { #comp_ty_ident }, quote! { #vis #comp_field_ident: #comp_ty_ident, })
                 };
+
+                if !c.key_field && (idx + 1 == components.len()) {
+                    key_value_name = Some(comp_field_ident.clone());
+                }
+
+                let comp_field_ident2 = comp_field_ident.clone();
+                arb_field_tokens.extend(quote!{ #comp_field_ident2, });
+
+                // TODO: temporary hack
+                if c.key_field {
+                    key_field = Some((comp_field_ident, ty_ident));
+                } else if comp_field_ident.to_string().as_str() == "ie_extensions" { 
+                    arb_def_tokens.extend(quote!{ let #comp_field_ident: #ty_ident = None; });
+                } else {
+                    arb_def_tokens.extend(quote!{ let #comp_field_ident: #ty_ident = u.arbitrary()?; });
+                }
 
                 if c.key_field {
                     fld_attrs.push(quote! { key_field = true })
@@ -71,6 +91,10 @@ impl ResolvedConstructedType {
                 });
             }
 
+            if let (Some((comp_field_ident, ty_ident)), Some(key_value_field_ident)) = (key_field, key_value_name) {
+                arb_def_tokens.extend(quote! { let #comp_field_ident: #ty_ident = #ty_ident(#key_value_field_ident.choice_key()); });
+            }
+
             let mut ty_tokens = quote! { type = "SEQUENCE", extensible = #extensible };
 
             if optional_fields > 0 {
@@ -79,12 +103,21 @@ impl ResolvedConstructedType {
                 ty_tokens.extend(quote! { , optional_fields = #optflds });
             }
 
-            let dir = generator.generate_derive_tokens();
+            let dir = generator.generate_derive_tokens(false); // TODO: definitely fix this so that fields are sequentially optional
             Ok(quote! {
                 #dir
                 #[asn(#ty_tokens)]
                 #vis struct #type_name {
                     #comp_tokens
+                }
+
+                impl<'a> arbitrary::Arbitrary<'a> for #type_name {
+                    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                        #arb_def_tokens
+                        Ok(Self {
+                            #arb_field_tokens
+                        })
+                    }
                 }
             })
         } else {

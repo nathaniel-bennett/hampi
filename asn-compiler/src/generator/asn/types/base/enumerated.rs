@@ -27,8 +27,10 @@ impl Asn1ResolvedEnumerated {
         ty_attributes.extend(quote! { , lb = "0" });
         ty_attributes.extend(quote! { , ub =  #ub  });
 
+        let ub_int = proc_macro2::Literal::usize_unsuffixed(ub.parse().unwrap());
+
         let vis = generator.get_visibility_tokens();
-        let dir = generator.generate_derive_tokens();
+        let dir = generator.generate_derive_tokens(false);
 
         let struct_tokens = quote! {
             #dir
@@ -37,6 +39,12 @@ impl Asn1ResolvedEnumerated {
 
             impl #struct_name {
                 #named_values
+            }
+
+            impl<'a> arbitrary::Arbitrary<'a> for #struct_name {
+                fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                    Ok(#struct_name(u.int_in_range(0..=#ub_int)?))
+                }
             }
         };
 

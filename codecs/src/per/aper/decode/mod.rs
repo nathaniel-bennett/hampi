@@ -134,7 +134,7 @@ pub fn decode_octetstring(
     is_extensible: bool,
 ) -> Result<Vec<u8>, PerCodecError> {
     log::trace!(
-        "decode_bitstring: lb: {:?}, ub: {:?}, is_extensible: {}",
+        "decode_octetstring: lb: {:?}, ub: {:?}, is_extensible: {}",
         lb,
         ub,
         is_extensible

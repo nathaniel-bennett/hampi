@@ -20,21 +20,45 @@ impl Asn1ResolvedCharacterString {
 
         let mut ty_attributes = quote! { type = #char_str_type };
 
-        if self.size.is_some() {
-            let sz_attributes = self.size.as_ref().unwrap().get_ty_size_constraints_attrs();
-            ty_attributes.extend(sz_attributes);
-        }
-
         let vis = generator.get_visibility_tokens();
-        let dir = generator.generate_derive_tokens();
 
-        let struct_tokens = quote! {
-            #dir
-            #[asn(#ty_attributes)]
-            #vis struct #struct_name(#vis String);
-        };
+        if let Some(s) = self.size.as_ref() {
+            let sz_attributes = s.get_ty_size_constraints_attrs();
+            ty_attributes.extend(sz_attributes);
 
-        Ok(struct_tokens)
+            let min = proc_macro2::Literal::i128_unsuffixed(s.root_values.min().unwrap());
+            let max = proc_macro2::Literal::i128_unsuffixed(s.root_values.max().unwrap());
+
+            let dir = generator.generate_derive_tokens(false); // TODO: make custom derive if size.is_some()
+
+            let struct_tokens = quote! {
+                #dir
+                #[asn(#ty_attributes)]
+                #vis struct #struct_name(#vis String);
+
+                impl<'a> arbitrary::Arbitrary<'a> for #struct_name {
+                    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                        let str_length = std::cmp::max(#min, std::cmp::min(4, u.int_in_range(#min..=#max)?));
+                        let mut s = String::new();
+                        for _ in 0..str_length {
+                            s.push(u.arbitrary::<char>()?);
+                        }
+                        Ok(#struct_name(s))
+                    }
+                }
+            };
+
+            Ok(struct_tokens)
+        } else {
+            let dir = generator.generate_derive_tokens(true); // TODO: make custom derive if size.is_some()
+
+            let struct_tokens = quote! {
+                #dir
+                #[asn(#ty_attributes)]
+                #vis struct #struct_name(#vis String);
+            };
+            Ok(struct_tokens)
+        }
     }
 
     pub(crate) fn generate_ident_and_aux_type(

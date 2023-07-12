@@ -72,11 +72,15 @@ pub(super) fn generate_aper_codec_for_asn_sequence(
 
                 let mut bitmap = bitvec::bitvec![u8, bitvec::prelude::Msb0; 0; #opt_count];
 
-                #(#hdr_encode_tokens)*
+                for _ in 0..1 {
+                    #(#hdr_encode_tokens)*
+                }
 
                 #ty_encode_path(data, #ext, &bitmap, false)?;
-
-                #(#fld_encode_tokens)*
+                
+                for _ in 0..1 {
+                    #(#fld_encode_tokens)*
+                }
 
                 Ok(())
             }
@@ -162,7 +166,7 @@ fn generate_seq_field_codec_tokens_using_attrs(
                                     }
                                 }
                             };
-
+                            
                             let id = field.ident.as_ref().unwrap();
                             let field_encode_token = if optional {
                                 quote! {
@@ -170,6 +174,7 @@ fn generate_seq_field_codec_tokens_using_attrs(
                                         let #id = self.#id.as_ref().unwrap();
                                         #id.#codec_encode_fn(data)?;
                                     } else {
+                                        // break
                                     }
                                 }
                             } else {
@@ -183,6 +188,7 @@ fn generate_seq_field_codec_tokens_using_attrs(
                                     if self.#id.is_some() {
                                         bitmap.set(#optional_idx, true);
                                     } else {
+                                        // break
                                     }
                                 }
                             } else {

@@ -75,15 +75,24 @@ impl ResolvedSetType {
         generator: &mut Generator,
     ) -> Result<TokenStream, Error> {
         let ty_ident = generator.to_type_ident(name);
-        let ty_elements = self.generate_aux_types(generator)?;
+        let (ty_elements, asn1_choice_tokens) = self.generate_aux_types(generator)?;
 
         let vis = generator.get_visibility_tokens();
-        let dir = generator.generate_derive_tokens();
+        let dir = generator.generate_derive_tokens(true);
 
         Ok(quote! {
             #dir
             #vis enum #ty_ident {
                 #ty_elements
+            }
+
+            impl asn1_codecs::Asn1Choice for #ty_ident {
+                fn choice_key<K: TryFrom<u128>>(&self) -> K 
+                where <K as TryFrom<u128>>::Error: std::fmt::Debug {
+                    match self {
+                        #asn1_choice_tokens
+                    }
+                }
             }
         })
     }
@@ -98,16 +107,25 @@ impl ResolvedSetType {
             None => generator.to_type_ident(&self.setref),
             Some(inp) => generator.to_type_ident(inp),
         };
-        let ty_elements = self.generate_aux_types(generator)?;
+        let (ty_elements, asn1_choice_tokens) = self.generate_aux_types(generator)?;
 
         let vis = generator.get_visibility_tokens();
-        let dir = generator.generate_derive_tokens();
+        let dir = generator.generate_derive_tokens(true);
 
         let set_ty = quote! {
             #dir
             #[asn(type = "OPEN")]
             #vis enum #ty_ident {
                 #ty_elements
+            }
+
+            impl asn1_codecs::Asn1Choice for #ty_ident {
+                fn choice_key<K: TryFrom<u128>>(&self) -> K 
+                where <K as TryFrom<u128>>::Error: std::fmt::Debug {
+                    match self {
+                        #asn1_choice_tokens
+                    }
+                }
             }
         };
 
@@ -116,8 +134,9 @@ impl ResolvedSetType {
         Ok(ty_ident)
     }
 
-    fn generate_aux_types(&self, generator: &mut Generator) -> Result<TokenStream, Error> {
+    fn generate_aux_types(&self, generator: &mut Generator) -> Result<(TokenStream, TokenStream), Error> {
         let mut variant_tokens = TokenStream::new();
+        let mut asn1_choice_tokens = TokenStream::new();
         for (name, ty) in &self.types {
             let variant_ident = generator.to_type_ident(&name.0);
             let ty_ident =
@@ -132,7 +151,12 @@ impl ResolvedSetType {
                 #variant_ident(#ty_ident),
             };
             variant_tokens.extend(variant_token);
+
+            let key_lit: u128 = ty.0.to_string().parse().unwrap();
+            asn1_choice_tokens.extend(quote! {
+                Self::#variant_ident(_) => #key_lit.try_into().unwrap(),
+            });
         }
-        Ok(variant_tokens)
+        Ok((variant_tokens, asn1_choice_tokens))
     }
 }

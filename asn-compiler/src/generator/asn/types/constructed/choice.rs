@@ -1,7 +1,7 @@
 //! Handling of Code generation for CHOICE ASN.1 Types
 
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{quote, format_ident};
 
 use crate::error::Error;
 use crate::generator::Generator;
@@ -49,7 +49,7 @@ impl ResolvedConstructedType {
             };
 
             let vis = generator.get_visibility_tokens();
-            let dir = generator.generate_derive_tokens();
+            let dir = generator.generate_derive_tokens(true); // TODO: maybe manually implement derive here??
             let struct_tokens =
                 ResolvedConstructedType::generate_struct_tokens_for_asn_choice_type(
                     &type_name,
@@ -74,6 +74,7 @@ impl ResolvedConstructedType {
         vis: TokenStream,
         dir: TokenStream,
     ) -> Result<TokenStream, Error> {
+        let mut asn1_choice_tokens = TokenStream::new();
         let mut root_comp_tokens = TokenStream::new();
         for token in root_tokens {
             let variant_ident = token.variant.clone();
@@ -86,6 +87,9 @@ impl ResolvedConstructedType {
                 #variant_ident(#ty_ident),
             };
             root_comp_tokens.extend(comp_token);
+
+            let key_token_lit = token.key as u128;
+            asn1_choice_tokens.extend(quote!{ #type_name::#variant_ident(_) => #key_token_lit.try_into().unwrap(), });
         }
 
         let mut addition_comp_tokens = quote! {
@@ -106,6 +110,9 @@ impl ResolvedConstructedType {
                     #variant_ident(#ty_ident),
                 };
                 addition_comp_tokens.extend(comp_token);
+
+                let key_token_lit = token.key as u128;
+                asn1_choice_tokens.extend(quote!{ #type_name::#variant_ident(_) => #key_token_lit.try_into().unwrap(), });
             }
         }
 
@@ -130,8 +137,19 @@ impl ResolvedConstructedType {
                 #root_comp_tokens
                 #addition_comp_tokens
             }
+
+            impl asn1_codecs::Asn1Choice for #type_name {
+                fn choice_key<K: TryFrom<u128>>(&self) -> K 
+                where <K as TryFrom<u128>>::Error: std::fmt::Debug {
+                    match self {
+                        #asn1_choice_tokens
+                    }
+                }
+            }
         })
     }
+
+    // TODO: id, criticality, (value|extension_value)
 
     fn get_component_tokens(
         components: &[ResolvedComponent],

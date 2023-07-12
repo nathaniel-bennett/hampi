@@ -53,12 +53,21 @@ impl Asn1ResolvedInteger {
         }
 
         let vis = generator.get_visibility_tokens();
-        let dir = generator.generate_derive_tokens();
+        let dir = generator.generate_derive_tokens(false);
+
+        let lb_int = proc_macro2::Literal::i128_unsuffixed(min.unwrap_or(0));
+        let ub_int = proc_macro2::Literal::i128_unsuffixed(max.unwrap_or(127));
 
         let struct_tokens = quote! {
             #dir
             #[asn(#ty_tokens)]
             #vis struct #struct_name(#vis #inner_type);
+
+            impl<'a> arbitrary::Arbitrary<'a> for #struct_name {
+                fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                    Ok(#struct_name(u.int_in_range(#lb_int..=#ub_int)?))
+                }
+            }
         };
 
         Ok(struct_tokens)
