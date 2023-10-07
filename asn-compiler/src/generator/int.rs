@@ -119,7 +119,11 @@ impl Generator {
 
         // Add necessary include crates
         items.push(quote! {
+            #![allow(non_camel_case_types)]
+            #![allow(dead_code)]
             use asn1_codecs::Asn1Choice;
+            use entropic::prelude::*;
+            use bitvec::prelude::*;
         });
 
         // Get the 'consts' for builtin values.
@@ -225,15 +229,15 @@ impl Generator {
         }
     }
 
-    pub(crate) fn generate_derive_tokens(&self, arbitrary: bool) -> TokenStream {
+    pub(crate) fn generate_derive_tokens(&self, entropic: bool) -> TokenStream {
         let mut tokens = vec![];
         for codec in &self.codecs {
             let codec_token = CODEC_TOKENS.get(codec).unwrap();
             tokens.push(codec_token.to_string());
         }
 
-        if arbitrary {
-            tokens.push("arbitrary::Arbitrary".to_string());
+        if entropic {
+            tokens.push("entropic::Entropic".to_string());
         }
 
         for derive in &self.derives {

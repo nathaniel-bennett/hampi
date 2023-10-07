@@ -105,6 +105,7 @@ impl PerCodecData {
     fn decode_bits_as_integer(&mut self, bits: usize, signed: bool) -> Result<i128, PerCodecError> {
         let remaining = self.bits.len() - self.decode_offset;
         if remaining < bits {
+//            panic!("Requested Bits thingy");
             Err(PerCodecError::new(
                 format!(
                     "PerCodec:DecodeError:Requested Bits to decode {}, Remaining bits {}",

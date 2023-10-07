@@ -39,7 +39,8 @@ impl Asn1ResolvedInteger {
             let max = value_set.root_values.max().unwrap();
             let bits_needed_max = 128 - max.abs().leading_zeros();
             let bits_needed_min = 128 - min.abs().leading_zeros();
-            std::cmp::max(bits_needed_min, bits_needed_max)
+            // TODO: temporary fix for buggy code. May still be buggy.
+            std::cmp::max(bits_needed_min, bits_needed_max) + if min < 0 && max > 0 { 1 } else { 0 }
         } else if value_set.root_values.min().is_none() {
             8_u32
         } else {

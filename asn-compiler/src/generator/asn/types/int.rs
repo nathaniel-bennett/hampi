@@ -80,17 +80,33 @@ impl ResolvedSetType {
         let vis = generator.get_visibility_tokens();
         let dir = generator.generate_derive_tokens(true);
 
-        Ok(quote! {
-            #dir
-            #vis enum #ty_ident {
-                #ty_elements
-            }
+        Ok(if let Some(ty_elements) = ty_elements {
+            quote! {
+                #dir
+                #vis enum #ty_ident {
+                    #ty_elements
+                }
 
-            impl asn1_codecs::Asn1Choice for #ty_ident {
-                fn choice_key<K: TryFrom<u128>>(&self) -> K 
-                where <K as TryFrom<u128>>::Error: std::fmt::Debug {
-                    match self {
-                        #asn1_choice_tokens
+                impl asn1_codecs::Asn1Choice for #ty_ident {
+                    fn choice_key<K: TryFrom<u128>>(&self) -> K 
+                    where <K as TryFrom<u128>>::Error: std::fmt::Debug {
+                        match self {
+                            #asn1_choice_tokens
+                        }
+
+                    }
+                }
+            }
+        } else {
+            // If there are no fields in the enum, make the enum a fieldless struct
+            quote! {
+                #dir
+                #vis struct #ty_ident;
+
+                impl asn1_codecs::Asn1Choice for #ty_ident {
+                    fn choice_key<K: TryFrom<u128>>(&self) -> K 
+                    where <K as TryFrom<u128>>::Error: std::fmt::Debug {
+                        0u128.try_into().unwrap()
                     }
                 }
             }
@@ -112,18 +128,33 @@ impl ResolvedSetType {
         let vis = generator.get_visibility_tokens();
         let dir = generator.generate_derive_tokens(true);
 
-        let set_ty = quote! {
-            #dir
-            #[asn(type = "OPEN")]
-            #vis enum #ty_ident {
-                #ty_elements
-            }
+        let set_ty = if let Some(ty_elements) = ty_elements {
+            quote! {
+                #dir
+                #[asn(type = "OPEN")]
+                #vis enum #ty_ident {
+                    #ty_elements
+                }
 
-            impl asn1_codecs::Asn1Choice for #ty_ident {
-                fn choice_key<K: TryFrom<u128>>(&self) -> K 
-                where <K as TryFrom<u128>>::Error: std::fmt::Debug {
-                    match self {
-                        #asn1_choice_tokens
+                impl asn1_codecs::Asn1Choice for #ty_ident {
+                    fn choice_key<K: TryFrom<u128>>(&self) -> K 
+                    where <K as TryFrom<u128>>::Error: std::fmt::Debug {
+                        match self {
+                            #asn1_choice_tokens
+                        }
+                    }
+                }
+            }
+        } else {
+            quote! {
+                #dir
+                #[asn(type = "OPEN")]
+                #vis struct #ty_ident;
+
+                impl asn1_codecs::Asn1Choice for #ty_ident {
+                    fn choice_key<K: TryFrom<u128>>(&self) -> K 
+                    where <K as TryFrom<u128>>::Error: std::fmt::Debug {
+                        0u128.try_into().unwrap()
                     }
                 }
             }
@@ -134,7 +165,7 @@ impl ResolvedSetType {
         Ok(ty_ident)
     }
 
-    fn generate_aux_types(&self, generator: &mut Generator) -> Result<(TokenStream, TokenStream), Error> {
+    fn generate_aux_types(&self, generator: &mut Generator) -> Result<(Option<TokenStream>, TokenStream), Error> {
         let mut variant_tokens = TokenStream::new();
         let mut asn1_choice_tokens = TokenStream::new();
         for (name, ty) in &self.types {
@@ -157,6 +188,11 @@ impl ResolvedSetType {
                 Self::#variant_ident(_) => #key_lit.try_into().unwrap(),
             });
         }
-        Ok((variant_tokens, asn1_choice_tokens))
+
+        if self.types.is_empty() {
+            Ok((None, asn1_choice_tokens))
+        } else {
+            Ok((Some(variant_tokens), asn1_choice_tokens))
+        }
     }
 }

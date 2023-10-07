@@ -250,7 +250,7 @@ pub(crate) fn parse_fld_meta_as_codec_params(
                             match m.lit {
                                 syn::Lit::Bool(ref ext) => {
                                     let ext = ext.clone();
-                                    codec_params.extended.replace(ext);
+                                    codec_params.extended = Some(ext);
                                 }
                                 _ => errors.push(syn::Error::new_spanned(
                                     nested,

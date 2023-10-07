@@ -1,9 +1,4 @@
-# Hampi - Rust ASN.1 Toolkit
-
-[![GitHub Workflow Status (branch)](https://img.shields.io/github/actions/workflow/status/gabhijit/hampi/CI.yml?branch=master)](https://github.com/gabhijit/hampi/actions/workflows/CI.yml)
-[![Crates.io](https://img.shields.io/crates/v/asn1-codecs?label=asn1-codecs)](https://crates.io/crates/asn1-codecs)
-[![Crates.io](https://img.shields.io/crates/v/asn1-compiler?label=asn1-compiler)](https://crates.io/crates/asn1-compiler)
-[![Crates.io](https://img.shields.io/crates/v/asn1_codecs_derive?label=asn1_codecs_derive)](https://crates.io/crates/asn1_codecs_derive)
+# asn1fuzz - ASN.1 Structure-Aware Fuzzing Compiler
 
 The Goal of this project is to implement an ASN.1 Compiler in Rust which can generate Rust bindings for different ASN.1 specifications, which can be used in various protocol implementations in Rust. Also, support for different ASN.1 encoding rules like DER, BER, PER is planned to be implemented as ASN.1 codecs.
 
@@ -50,10 +45,8 @@ Currently there are two ways of generating the 'ASN.1' spec files from the '.doc
 1. Using the script inside `examples/specs/parse_specs.py`. This is recommended way. (note: this requires installation of `docx` or `python-docx` in the case of Python3).
 2. Using the rust binary `extract-asn-spec`. Note: this is not the recommended way and your mileage may vary. Eventual goal is to make this the default way - so as to also have a `build.rs` integration. But this is for now a work in progress. This is not available by default and is enabled only with a feature flag `rs-specs-gen`.
 
-## License
+## License & Attribution
 
-Licensed under either of
+This project is licensed under the [MIT License](./LICENSE.md).
 
-* Apache License, Version 2.0 ([LICENSE-Apache](https://github.com/gabhijit/hampi/blob/master/LICENSE-Apache2) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
-* MIT License ([LICENSE-MIT](https://github.com/gabhijit/hampi/blob/master/LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
-
+This project makes use of source code from the [Hampi Rust ASN.1 Toolkit](https://github.com/gabhijit/hampi), which is likewise licensed under the MIT License (stored [here](./LICENSE.md.old)). Special thanks goes to Abhijit Gadgil for authoring the Rust ASN.1 Toolkit that has contributed significantly to this project.

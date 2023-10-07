@@ -36,20 +36,52 @@ impl Asn1ResolvedBitString {
                 #[asn(#ty_attributes)]
                 #vis struct #struct_name(#vis bitvec::vec::BitVec<u8, bitvec::order::Msb0>);
 
-                impl<'a> arbitrary::Arbitrary<'a> for #struct_name {
-                    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                impl entropic::Entropic for #struct_name {
+                    fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
+                        source: &mut entropic::FiniteEntropySource<'a, S, I>,
+                    ) -> Result<Self, entropic::Error> {
                         let mut bv = bitvec::vec::BitVec::EMPTY;
-                        for _ in 0..#min {
-                            bv.push(u.arbitrary()?);
+
+                        let capped_max = std::cmp::min(#max, 16383);
+
+                        let total_bitlen = source.get_bounded_len(#min..=capped_max)?;
+                        assert!(total_bitlen <= capped_max);
+                        let bytes = total_bitlen / 8;
+                        let bits = total_bitlen & 0b111; // Mod 8
+
+                        for _ in 0..bytes {
+                            bv.extend_from_raw_slice(source.entropic::<u8>()?.to_ne_bytes().as_slice())
                         }
                         
-                        if #max > #min {
-                            for _ in 0..u.int_in_range(0..=#max - #min - 1)? {
-                                bv.push(u.arbitrary()?);
-                            }
+                        for _ in 0..bits {
+                            bv.push(source.entropic()?);
                         }
-                
-                        Ok(#struct_name(bv)) 
+
+                        Ok(#struct_name(bv))
+                    }
+
+                    fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                        &self,
+                        sink: &mut FiniteEntropySink<'a, S, I>,
+                    ) -> Result<usize, Error> {
+                        assert!(self.0.len() >= #min);
+
+                        let capped_max = std::cmp::min(#max, 16383);
+
+                        let mut length = 0;
+                        length += sink.put_bounded_len(#min..=capped_max, self.0.len())?;
+                        let bytes = self.0.len() / 8;
+                        let bits = self.0.len() & 0b111;
+
+                        for idx in 0..bytes {
+                            length += sink.put_entropic(&self.0.as_raw_slice()[idx])?;
+                        }
+
+                        for idx in 0..bits {
+                            length += sink.put_entropic(&self.0[(8 * bytes) + idx])?;
+                        }
+
+                        Ok(length)
                     }
                 }
             };

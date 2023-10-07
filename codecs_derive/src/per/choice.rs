@@ -107,7 +107,7 @@ fn generate_choice_variant_decode_tokens_using_attrs(
                     ));
                         continue;
                     }
-                    let extended = cp.extended.as_ref();
+                    let extended = cp.extended.as_ref(); // TODO: bug here??
                     let variant_ident = &variant.ident;
                     if let syn::Fields::Unnamed(ref fields) = variant.fields {
                         if fields.unnamed.len() == 1 {

@@ -36,14 +36,34 @@ impl Asn1ResolvedCharacterString {
                 #[asn(#ty_attributes)]
                 #vis struct #struct_name(#vis String);
 
-                impl<'a> arbitrary::Arbitrary<'a> for #struct_name {
-                    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-                        let str_length = std::cmp::max(#min, std::cmp::min(4, u.int_in_range(#min..=#max)?));
+                impl entropic::Entropic for #struct_name {
+                    fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
+                        source: &mut entropic::FiniteEntropySource<'a, S, I>,
+                    ) -> Result<Self, entropic::Error> {
+                        let capped_max = std::cmp::min(#max, 16383);
+                        let strlen = source.get_bounded_len(#min..=capped_max)?;
                         let mut s = String::new();
-                        for _ in 0..str_length {
-                            s.push(u.arbitrary::<char>()?);
+                        for _ in 0..strlen {
+                            s.push(char::from_finite_entropy(source)?);
                         }
-                        Ok(#struct_name(s))
+
+                        Ok(Self(s))
+                    }
+
+                    fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                        &self,
+                        sink: &mut FiniteEntropySink<'a, S, I>,
+                    ) -> Result<usize, Error> {
+                        let capped_max = std::cmp::min(#max, 16383);
+                        let mut length = 0;
+                        let strlen = self.0.chars().count();
+
+                        length += sink.put_bounded_len(#min..=capped_max, strlen)?;
+                        for c in self.0.chars() {
+                            length += c.to_finite_entropy(sink)?;
+                        }
+
+                        Ok(length)
                     }
                 }
             };

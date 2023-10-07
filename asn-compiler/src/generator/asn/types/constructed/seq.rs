@@ -31,8 +31,10 @@ impl ResolvedConstructedType {
 
             let vis = generator.get_visibility_tokens();
 
-            let mut arb_def_tokens = TokenStream::new();
-            let mut arb_field_tokens = TokenStream::new();
+            let mut from_entropy_defs = TokenStream::new();
+            let mut from_entropy_fields = TokenStream::new();
+            let mut to_entropy_defs = TokenStream::new();
+
             let mut key_field = None;
             let mut key_value_name = None;
             let mut comp_tokens = TokenStream::new();
@@ -64,20 +66,17 @@ impl ResolvedConstructedType {
                     key_value_name = Some(comp_field_ident.clone());
                 }
 
-                let comp_field_ident2 = comp_field_ident.clone();
-                arb_field_tokens.extend(quote!{ #comp_field_ident2, });
+                from_entropy_fields.extend(quote! { #comp_field_ident, });
 
                 // TODO: temporary hack
                 if c.key_field {
+                    fld_attrs.push(quote! { key_field = true });
                     key_field = Some((comp_field_ident, ty_ident));
                 } else if comp_field_ident.to_string().as_str() == "ie_extensions" { 
-                    arb_def_tokens.extend(quote!{ let #comp_field_ident: #ty_ident = None; });
+                    from_entropy_defs.extend(quote!{ let #comp_field_ident: #ty_ident = None; });
                 } else {
-                    arb_def_tokens.extend(quote!{ let #comp_field_ident: #ty_ident = u.arbitrary()?; });
-                }
-
-                if c.key_field {
-                    fld_attrs.push(quote! { key_field = true })
+                    from_entropy_defs.extend(quote!{ let #comp_field_ident: #ty_ident = __entropic_internal_source.entropic()?; });
+                    to_entropy_defs.extend(quote!{ __entropic_internal_length += self.#comp_field_ident.to_finite_entropy(__entropic_internal_sink)?; });
                 }
 
                 let fld_attr_tokens = if !fld_attrs.is_empty() {
@@ -91,8 +90,10 @@ impl ResolvedConstructedType {
                 });
             }
 
+            // Should only happen if c.key_field == true
             if let (Some((comp_field_ident, ty_ident)), Some(key_value_field_ident)) = (key_field, key_value_name) {
-                arb_def_tokens.extend(quote! { let #comp_field_ident: #ty_ident = #ty_ident(#key_value_field_ident.choice_key()); });
+                from_entropy_defs.extend(quote! { let #comp_field_ident: #ty_ident = #ty_ident(#key_value_field_ident.choice_key()); });
+                // to_entropy_defs doesn't need anything here as no entropy was expended
             }
 
             let mut ty_tokens = quote! { type = "SEQUENCE", extensible = #extensible };
@@ -103,7 +104,7 @@ impl ResolvedConstructedType {
                 ty_tokens.extend(quote! { , optional_fields = #optflds });
             }
 
-            let dir = generator.generate_derive_tokens(false); // TODO: definitely fix this so that fields are sequentially optional
+            let dir = generator.generate_derive_tokens(false); // TODO: eventually fix this so that fields are sequentially optional
             Ok(quote! {
                 #dir
                 #[asn(#ty_tokens)]
@@ -111,12 +112,23 @@ impl ResolvedConstructedType {
                     #comp_tokens
                 }
 
-                impl<'a> arbitrary::Arbitrary<'a> for #type_name {
-                    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-                        #arb_def_tokens
+                impl entropic::Entropic for #type_name {
+                    fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
+                        __entropic_internal_source: &mut entropic::FiniteEntropySource<'a, S, I>,
+                    ) -> Result<Self, entropic::Error> {
+                        #from_entropy_defs
                         Ok(Self {
-                            #arb_field_tokens
+                            #from_entropy_fields
                         })
+                    }
+
+                    fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                        &self,
+                        __entropic_internal_sink: &mut FiniteEntropySink<'a, S, I>,
+                    ) -> Result<usize, Error> {
+                        let mut __entropic_internal_length = 0;
+                        #to_entropy_defs
+                        Ok(__entropic_internal_length)
                     }
                 }
             })

@@ -42,6 +42,7 @@ impl Asn1Definition {
         }
     }
 
+    // GO FROM HERE
     pub fn resolve_object_class(&mut self, class: &Asn1Definition) -> Result<(), Error> {
         if let Asn1AssignmentKind::Class(ref c) = class.kind {
             match self.kind {
@@ -250,6 +251,9 @@ fn parse_typeish_definition(tokens: &[Token]) -> Result<(Asn1Definition, usize),
         tokens[0]
     ))
 }
+
+
+// GO FROM HERE
 
 // Parse a Type Assignment
 //

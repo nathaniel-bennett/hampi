@@ -41,9 +41,18 @@ impl Asn1ResolvedEnumerated {
                 #named_values
             }
 
-            impl<'a> arbitrary::Arbitrary<'a> for #struct_name {
-                fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-                    Ok(#struct_name(u.int_in_range(0..=#ub_int)?))
+            impl entropic::Entropic for #struct_name {
+                fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
+                    source: &mut entropic::FiniteEntropySource<'a, S, I>,
+                ) -> Result<Self, entropic::Error> {
+                    Ok(#struct_name(source.get_uniform_range(0..=#ub_int)?))
+                }
+
+                fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                    &self,
+                    sink: &mut FiniteEntropySink<'a, S, I>,
+                ) -> Result<usize, Error> {
+                    Ok(sink.put_uniform_range(0..=#ub_int as #inner_type, self.0)?)
                 }
             }
         };

@@ -33,14 +33,30 @@ impl Asn1ResolvedOctetString {
                 #[asn(#ty_attributes)]
                 #vis struct #struct_name(#vis Vec<u8>);
 
-                impl<'a> arbitrary::Arbitrary<'a> for #struct_name {
-                    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-                        let vec_length = std::cmp::max(#min, std::cmp::min(4, u.int_in_range(#min..=#max)?));
-                        let vec_length = u.int_in_range(#min..=#max)?;
+                impl entropic::Entropic for #struct_name {
+                    fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
+                        source: &mut entropic::FiniteEntropySource<'a, S, I>,
+                    ) -> Result<Self, entropic::Error> {
+                        let capped_max = std::cmp::min(#max, 16383);
+                        let vec_len = source.get_bounded_len(#min..=capped_max)?;
                         let mut v = Vec::new();
 
-                        v.extend_from_slice(u.bytes(vec_length)?);
+                        for _ in 0..vec_len {
+                            v.push(u8::from_finite_entropy(source)?);
+                        }
                         Ok(#struct_name(v))
+                    }
+
+                    fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                        &self,
+                        sink: &mut FiniteEntropySink<'a, S, I>,
+                    ) -> Result<usize, Error> {
+                        let capped_max = std::cmp::min(#max, 16383);
+                        let mut length = 0;
+                        length += sink.put_bounded_len(#min..=capped_max, self.0.len())?;
+                        length += sink.put_slice(self.0.as_slice())?;
+
+                        Ok(length)
                     }
                 }
             };
