@@ -61,45 +61,45 @@ def gen_new_rust(proto_ies):
             if presence == 'mandatory':
                 from_entropy_fields_output += \
                 f'''
-    let b = source.get_byte()?;
-    if (b & 0b_0001_1111) != 0b_0001_1111 {{ // 1/32 chance of missing
-        let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
-        ie_list.push({ies_entry_ty} {{
-            id: ProtocolIE_ID(ie_value.choice_key()),
-            criticality: Criticality({criticality}),
-            value: ie_value,
-        }});
-    }}
+        let b = source.get_byte()?;
+        if (b & 0b_0111_1111) != 0b_0111_1111 {{ // 1/128 chance of missing
+            let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
+            ie_list.push({ies_entry_ty} {{
+                id: ProtocolIE_ID(ie_value.choice_key()),
+                criticality: Criticality({criticality}),
+                value: ie_value,
+            }});
+        }}
                 '''
                 to_entropy_fields_output += \
                 f'''
         if let Some({ies_entryvalue_ty}::{ident}(value)) = self.0.get(ie_idx).map(|ie| &ie.value) {{
             ie_idx += 1;
             length += sink.put_byte(0b_0000_0000)?;
-            sink.put_entropic(value)?;
+            length += sink.put_entropic(value)?;
         }} else {{
-            length += sink.put_byte(0b_0001_1111)?;
+            length += sink.put_byte(0b_0111_1111)?;
         }};
                 '''
             elif presence == 'conditional':
                 from_entropy_fields_output += \
                 f'''
-    let b = source.get_byte()?;
-    if (b & 0b_0000_0011) == 0b_0000_0011 {{ // 1/4 chance of being present
-        let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
-        ie_list.push({ies_entry_ty} {{
-            id: ProtocolIE_ID(ie_value.choice_key()),
-            criticality: Criticality({criticality}),
-            value: ie_value,
-        }});
-    }}
+        let b = source.get_byte()?;
+        if (b & 0b_0000_0011) == 0b_0000_0011 {{ // 1/4 chance of being present
+            let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
+            ie_list.push({ies_entry_ty} {{
+                id: ProtocolIE_ID(ie_value.choice_key()),
+                criticality: Criticality({criticality}),
+                value: ie_value,
+            }});
+        }}
                 '''
                 to_entropy_fields_output += \
                 f'''
         if let Some({ies_entryvalue_ty}::{ident}(value)) = self.0.get(ie_idx).map(|ie| &ie.value) {{
             ie_idx += 1;
             length += sink.put_byte(0b_0000_0011)?;
-            sink.put_entropic(value)?;
+            length += sink.put_entropic(value)?;
         }} else {{
             length += sink.put_byte(0b_0000_0000)?;
         }};
@@ -107,22 +107,22 @@ def gen_new_rust(proto_ies):
             elif presence == 'optional':
                 from_entropy_fields_output += \
                 f'''
-    let b = source.get_byte()?;
-    if (b & 0b_0000_1111) == 0b_0000_1111 {{ // 1/16 chance of being present
-        let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
-        ie_list.push({ies_entry_ty} {{
-            id: ProtocolIE_ID(ie_value.choice_key()),
-            criticality: Criticality({criticality}),
-            value: ie_value,
-        }});
-    }}
+        let b = source.get_byte()?;
+        if (b & 0b_0000_1111) == 0b_0000_1111 {{ // 1/16 chance of being present
+            let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
+            ie_list.push({ies_entry_ty} {{
+                id: ProtocolIE_ID(ie_value.choice_key()),
+                criticality: Criticality({criticality}),
+                value: ie_value,
+            }});
+        }}
                 '''
                 to_entropy_fields_output += \
                 f'''
         if let Some({ies_entryvalue_ty}::{ident}(value)) = self.0.get(ie_idx).map(|ie| &ie.value) {{
             ie_idx += 1;
             length += sink.put_byte(0b_0000_1111)?;
-            sink.put_entropic(value)?;
+            length += sink.put_entropic(value)?;
         }} else {{
             length += sink.put_byte(0b_0000_0000)?;
         }};
