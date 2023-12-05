@@ -60,7 +60,7 @@ def gen_new_rust(proto_ies):
                 f'''
     let b = source.get_byte()?;
     if (b & 0b_0001_1111) != 0b_0001_1111 {{ // 1/32 chance of missing
-        let ie_value = {ies_entryvalue_ty}::{ident}(source.entropic()?);
+        let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
         ie_list.push({ies_entry_ty} {{
             id: ProtocolIE_ID(ie_value.choice_key()),
             criticality: Criticality(Criticality::IGNORE),
@@ -83,7 +83,7 @@ def gen_new_rust(proto_ies):
                 f'''
     let b = source.get_byte()?;
     if (b & 0b_0000_0011) == 0b_0000_0011 {{ // 1/4 chance of being present
-        let ie_value = {ies_entryvalue_ty}::{ident}(source.entropic()?);
+        let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
         ie_list.push({ies_entry_ty} {{
             id: ProtocolIE_ID(ie_value.choice_key()),
             criticality: Criticality(Criticality::IGNORE),
@@ -106,7 +106,7 @@ def gen_new_rust(proto_ies):
                 f'''
     let b = source.get_byte()?;
     if (b & 0b_0000_1111) == 0b_0000_1111 {{ // 1/16 chance of being present
-        let ie_value = {ies_entryvalue_ty}::{ident}(source.entropic()?);
+        let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
         ie_list.push({ies_entry_ty} {{
             id: ProtocolIE_ID(ie_value.choice_key()),
             criticality: Criticality(Criticality::IGNORE),
@@ -129,9 +129,10 @@ def gen_new_rust(proto_ies):
         
         output += f'''
 impl entropic::Entropic for {ies_ty} {{
-    fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
-        source: &mut entropic::FiniteEntropySource<'a, S, I>,
-    ) -> Result<Self, entropic::Error> {{
+    #[inline]
+    fn from_entropy_source<'a, I: Iterator<Item = &'a u8>, E: EntropyScheme>(
+        source: &mut Source<'a, I, E>,
+    ) -> Result<Self, Error> {{
         let mut ie_list = Vec::new();
 
         // Loop this part for every enum discriminant
@@ -141,9 +142,10 @@ impl entropic::Entropic for {ies_ty} {{
         Ok({ies_ty}(ie_list))
     }}
 
-    fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+    #[inline]
+    fn to_entropy_sink<'a, I: Iterator<Item = &'a mut u8>, E: EntropyScheme>(
         &self,
-        sink: &mut FiniteEntropySink<'a, S, I>,
+        sink: &mut Sink<'a, I, E>,
     ) -> Result<usize, Error> {{
         let mut ie_idx = 0;
         let mut length = 0;

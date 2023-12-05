@@ -34,22 +34,24 @@ impl Asn1ResolvedOctetString {
                 #vis struct #struct_name(#vis Vec<u8>);
 
                 impl entropic::Entropic for #struct_name {
-                    fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
-                        source: &mut entropic::FiniteEntropySource<'a, S, I>,
-                    ) -> Result<Self, entropic::Error> {
+                    #[inline]
+                    fn from_entropy_source<'a, I: Iterator<Item = &'a u8>, E: EntropyScheme>(
+                        source: &mut Source<'a, I, E>,
+                    ) -> Result<Self, Error> {
                         let capped_max = std::cmp::min(#max, 16383);
                         let vec_len = source.get_bounded_len(#min..=capped_max)?;
                         let mut v = Vec::new();
 
                         for _ in 0..vec_len {
-                            v.push(u8::from_finite_entropy(source)?);
+                            v.push(u8::from_entropy_source(source)?);
                         }
                         Ok(#struct_name(v))
                     }
-
-                    fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                
+                    #[inline]
+                    fn to_entropy_sink<'a, I: Iterator<Item = &'a mut u8>, E: EntropyScheme>(
                         &self,
-                        sink: &mut FiniteEntropySink<'a, S, I>,
+                        sink: &mut Sink<'a, I, E>,
                     ) -> Result<usize, Error> {
                         let capped_max = std::cmp::min(#max, 16383);
                         let mut length = 0;

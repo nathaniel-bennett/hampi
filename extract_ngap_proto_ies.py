@@ -52,8 +52,11 @@ def gen_new_rust(proto_ies):
         from_entropy_fields_output = ''
         to_entropy_fields_output = ''
 
-        for ident,ty,presence in fields:
-
+        for ident,ty,presence,is_reject in fields:
+            if is_reject:
+                criticality = "Criticality::REJECT"
+            else:
+                criticality = "Criticality::IGNORE"
         
             if presence == 'mandatory':
                 from_entropy_fields_output += \
@@ -63,25 +66,20 @@ def gen_new_rust(proto_ies):
         let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
         ie_list.push({ies_entry_ty} {{
             id: ProtocolIE_ID(ie_value.choice_key()),
-            criticality: Criticality(Criticality::IGNORE),
+            criticality: Criticality({criticality}),
             value: ie_value,
         }});
     }}
                 '''
                 to_entropy_fields_output += \
                 f'''
-    let mut found = false;
-    for val in self.0.iter() {{
-        if let {ies_entryvalue_ty}::{ident}(value) = &val.value {{
+        if let Some({ies_entryvalue_ty}::{ident}(value)) = self.0.get(ie_idx).map(|ie| &ie.value) {{
+            ie_idx += 1;
             length += sink.put_byte(0b_0000_0000)?;
             sink.put_entropic(value)?;
-            found = true;
-            break;
-        }}
-    }}
-    if !found {{
-        length += sink.put_byte(0b_0001_1111)?;
-    }}
+        }} else {{
+            length += sink.put_byte(0b_0001_1111)?;
+        }};
                 '''
             elif presence == 'conditional':
                 from_entropy_fields_output += \
@@ -91,25 +89,20 @@ def gen_new_rust(proto_ies):
         let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
         ie_list.push({ies_entry_ty} {{
             id: ProtocolIE_ID(ie_value.choice_key()),
-            criticality: Criticality(Criticality::IGNORE),
+            criticality: Criticality({criticality}),
             value: ie_value,
         }});
     }}
                 '''
                 to_entropy_fields_output += \
                 f'''
-    let mut found = false;
-    for val in self.0.iter() {{
-        if let {ies_entryvalue_ty}::{ident}(value) = &val.value {{
+        if let Some({ies_entryvalue_ty}::{ident}(value)) = self.0.get(ie_idx).map(|ie| &ie.value) {{
+            ie_idx += 1;
             length += sink.put_byte(0b_0000_0011)?;
             sink.put_entropic(value)?;
-            found = true;
-            break;
-        }}
-    }}
-    if !found {{
-        length += sink.put_byte(0b_0000_0000)?;
-    }}
+        }} else {{
+            length += sink.put_byte(0b_0000_0000)?;
+        }};
                 '''
             elif presence == 'optional':
                 from_entropy_fields_output += \
@@ -119,25 +112,20 @@ def gen_new_rust(proto_ies):
         let ie_value = {ies_entryvalue_ty}::{ident}(source.get_entropic()?);
         ie_list.push({ies_entry_ty} {{
             id: ProtocolIE_ID(ie_value.choice_key()),
-            criticality: Criticality(Criticality::IGNORE),
+            criticality: Criticality({criticality}),
             value: ie_value,
         }});
     }}
                 '''
                 to_entropy_fields_output += \
                 f'''
-    let mut found = false;
-    for val in self.0.iter() {{
-        if let {ies_entryvalue_ty}::{ident}(value) = &val.value {{
+        if let Some({ies_entryvalue_ty}::{ident}(value)) = self.0.get(ie_idx).map(|ie| &ie.value) {{
+            ie_idx += 1;
             length += sink.put_byte(0b_0000_1111)?;
             sink.put_entropic(value)?;
-            found = true;
-            break;
-        }}
-    }}
-    if !found {{
-        length += sink.put_byte(0b_0000_0000)?;
-    }}
+        }} else {{
+            length += sink.put_byte(0b_0000_0000)?;
+        }};
                 '''
             else:
                 sys.exit(f'Unknown presence value {presence}')
@@ -149,6 +137,9 @@ impl entropic::Entropic for {ies_ty} {{
         source: &mut Source<'a, I, E>,
     ) -> Result<Self, Error> {{
         let mut ie_list = Vec::new();
+
+        // Loop this part for every enum discriminant
+
         {from_entropy_fields_output}
         
         Ok({ies_ty}(ie_list))
@@ -159,20 +150,20 @@ impl entropic::Entropic for {ies_ty} {{
         &self,
         sink: &mut Sink<'a, I, E>,
     ) -> Result<usize, Error> {{
+        let mut ie_idx = 0;
         let mut length = 0;
 
         {to_entropy_fields_output}
+
+        if ie_idx != self.0.len() {{
+            return Err(entropic::Error::Internal)
+        }}
 
         Ok(length)
     }}
 }}
     '''
-
     return output
-
-
-
-
 
 def parse_asn_spec(asn_file):
     with open(asn_file, 'r') as infile:
@@ -183,7 +174,7 @@ def parse_asn_spec(asn_file):
     proto_ies = []
 
     while True:
-        proto_ies_idx = asn_spec.find(" S1AP-PROTOCOL-IES ::= {", proto_ies_idx)
+        proto_ies_idx = asn_spec.find(" NGAP-PROTOCOL-IES ::= {", proto_ies_idx)
         if proto_ies_idx < 0:
             break
         
@@ -198,14 +189,12 @@ def parse_asn_spec(asn_file):
             typename = typename[:-1]
 
 
-        proto_ies_idx += len(" S1AP-PROTOCOL-IES ::= {")
+        proto_ies_idx += len(" NGAP-PROTOCOL-IES ::= {")
 
         # Make sure the type conforms to name requirements (not robust yet)
         if not is_valid_typename(typename):
             print(f'typename "{typename}" is not valid')
             continue
-
-
 
         # Parse all IE fields
         fields = []
@@ -231,7 +220,15 @@ def parse_asn_spec(asn_file):
                     proto_ies_idx += 1               
 
             if asn_spec[proto_ies_idx] != '{':
-                sys.exit(f"ERROR: missing Protocol IEs field definition at {proto_ies_idx}")
+                print(f"ERROR: missing Protocol IEs field definition at {proto_ies_idx}")
+
+                proto_ies_idx += 1
+                while asn_spec[proto_ies_idx].isspace():
+                    proto_ies_idx += 1
+                if asn_spec[proto_ies_idx:proto_ies_idx + 3] != '...':
+                    print(f"WARNING: unexpected missing ' ...' from end of Protocol IEs def: {asn_spec[proto_ies_idx:proto_ies_idx+20]}")
+                proto_ies_idx += 3
+                break # We don't need to parse the closing '}'; we're just grepping anyways.
 
             f_start = proto_ies_idx
             proto_ies_idx = asn_spec.index('}', proto_ies_idx)
@@ -260,10 +257,17 @@ def parse_proto_field(f):
 
     id_start = i
     i = f.index('CRITICALITY', i)
-
+    
     ident = f[id_start:i].strip()
 
+    criticality_start = i + len('CRITICALITY')
     i = f.index('TYPE ', i)
+    criticality = f[criticality_start:i].strip()
+    if criticality == 'reject':
+        is_reject = True
+    else:
+        is_reject = False
+
     i += 5
     ty_start = i
 
@@ -284,7 +288,7 @@ def parse_proto_field(f):
     ident = ident.replace('-', '_')
     if ord(ident[0]) >= ord('a') and ord(ident[0]) <= ord('z'):
         ident = chr(ord('A') + ord(ident[0]) - ord('a')) + ident[1:]
-    return (ident, ty, presence)
+    return (ident, ty, presence, is_reject)
 
 
 def is_valid_typename(typename):

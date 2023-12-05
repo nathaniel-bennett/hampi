@@ -49,21 +49,23 @@ impl ResolvedConstructedType {
                     #vis struct #seq_of_type_ident(#vis Vec<#seq_of_type>);
 
                     impl entropic::Entropic for #seq_of_type_ident {
-                        fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
-                            source: &mut entropic::FiniteEntropySource<'a, S, I>,
-                        ) -> Result<Self, entropic::Error> {
+                        #[inline]
+                        fn from_entropy_source<'a, I: Iterator<Item = &'a u8>, E: EntropyScheme>(
+                            source: &mut Source<'a, I, E>,
+                        ) -> Result<Self, Error> {
                             let capped_max = std::cmp::min(#max, 10);
                             let vec_len = source.get_bounded_len(#min..=capped_max)?;
                             let mut v = Vec::new();
                             for _ in 0..vec_len {
-                                v.push(#seq_of_type::from_finite_entropy(source)?);
+                                v.push(#seq_of_type::from_entropy_source(source)?);
                             }
                             Ok(#seq_of_type_ident(v))
                         }
-
-                        fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                    
+                        #[inline]
+                        fn to_entropy_sink<'a, I: Iterator<Item = &'a mut u8>, E: EntropyScheme>(
                             &self,
-                            sink: &mut FiniteEntropySink<'a, S, I>,
+                            sink: &mut Sink<'a, I, E>,
                         ) -> Result<usize, Error> {
                             let mut length = 0;
                             let capped_max = std::cmp::min(#max, 10);

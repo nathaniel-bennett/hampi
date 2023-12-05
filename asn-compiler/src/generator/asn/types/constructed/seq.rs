@@ -75,8 +75,8 @@ impl ResolvedConstructedType {
                 } else if comp_field_ident.to_string().as_str() == "ie_extensions" { 
                     from_entropy_defs.extend(quote!{ let #comp_field_ident: #ty_ident = None; });
                 } else {
-                    from_entropy_defs.extend(quote!{ let #comp_field_ident: #ty_ident = __entropic_internal_source.entropic()?; });
-                    to_entropy_defs.extend(quote!{ __entropic_internal_length += self.#comp_field_ident.to_finite_entropy(__entropic_internal_sink)?; });
+                    from_entropy_defs.extend(quote!{ let #comp_field_ident: #ty_ident = source.get_entropic()?; });
+                    to_entropy_defs.extend(quote!{ __entropic_internal_length += self.#comp_field_ident.to_entropy_sink(sink)?; });
                 }
 
                 let fld_attr_tokens = if !fld_attrs.is_empty() {
@@ -113,18 +113,20 @@ impl ResolvedConstructedType {
                 }
 
                 impl entropic::Entropic for #type_name {
-                    fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
-                        __entropic_internal_source: &mut entropic::FiniteEntropySource<'a, S, I>,
-                    ) -> Result<Self, entropic::Error> {
+                    #[inline]
+                    fn from_entropy_source<'a, I: Iterator<Item = &'a u8>, E: EntropyScheme>(
+                        source: &mut Source<'a, I, E>,
+                    ) -> Result<Self, Error> {
                         #from_entropy_defs
                         Ok(Self {
                             #from_entropy_fields
                         })
                     }
-
-                    fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                
+                    #[inline]
+                    fn to_entropy_sink<'a, I: Iterator<Item = &'a mut u8>, E: EntropyScheme>(
                         &self,
-                        __entropic_internal_sink: &mut FiniteEntropySink<'a, S, I>,
+                        sink: &mut Sink<'a, I, E>,
                     ) -> Result<usize, Error> {
                         let mut __entropic_internal_length = 0;
                         #to_entropy_defs

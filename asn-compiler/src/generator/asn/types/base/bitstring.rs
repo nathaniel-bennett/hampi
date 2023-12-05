@@ -37,9 +37,11 @@ impl Asn1ResolvedBitString {
                 #vis struct #struct_name(#vis bitvec::vec::BitVec<u8, bitvec::order::Msb0>);
 
                 impl entropic::Entropic for #struct_name {
-                    fn from_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a u8>>(
-                        source: &mut entropic::FiniteEntropySource<'a, S, I>,
-                    ) -> Result<Self, entropic::Error> {
+
+                    #[inline]
+                    fn from_entropy_source<'a, I: Iterator<Item = &'a u8>, E: EntropyScheme>(
+                        source: &mut Source<'a, I, E>,
+                    ) -> Result<Self, Error> {
                         let mut bv = bitvec::vec::BitVec::EMPTY;
 
                         let capped_max = std::cmp::min(#max, 16383);
@@ -50,19 +52,20 @@ impl Asn1ResolvedBitString {
                         let bits = total_bitlen & 0b111; // Mod 8
 
                         for _ in 0..bytes {
-                            bv.extend_from_raw_slice(source.entropic::<u8>()?.to_ne_bytes().as_slice())
+                            bv.extend_from_raw_slice(source.get_entropic::<u8>()?.to_ne_bytes().as_slice())
                         }
                         
                         for _ in 0..bits {
-                            bv.push(source.entropic()?);
+                            bv.push(source.get_entropic()?);
                         }
 
                         Ok(#struct_name(bv))
                     }
-
-                    fn to_finite_entropy<'a, S: EntropyScheme, I: Iterator<Item = &'a mut u8>>(
+                
+                    #[inline]
+                    fn to_entropy_sink<'a, I: Iterator<Item = &'a mut u8>, E: EntropyScheme>(
                         &self,
-                        sink: &mut FiniteEntropySink<'a, S, I>,
+                        sink: &mut Sink<'a, I, E>,
                     ) -> Result<usize, Error> {
                         assert!(self.0.len() >= #min);
 
